@@ -5,7 +5,7 @@ export async function GET(request: Request) {
 	const targetUrl = searchParams.get("url");
 
 	if (!targetUrl) {
-		return new Response("Missing `url` query param", { status: 400 });
+		return new Response("Missing `url` query param in request", { status: 400 });
 	}
 
 	try {
