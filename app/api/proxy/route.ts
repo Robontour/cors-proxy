@@ -9,11 +9,9 @@ export async function GET(request: Request) {
 	}
 
 	try {
-		// Forwarding relevant headers from the client request
+		// Forward whitelisted request headers
 		const incomingHeaders = new Headers(request.headers);
 		const forwardedHeaders = new Headers();
-
-		// Whitelist headers that make sense to forward
 		const allowedRequestHeaders = ['accept', 'accept-language', 'user-agent', 'referer'];
 
 		for (const [key, value] of incomingHeaders.entries()) {
@@ -22,21 +20,36 @@ export async function GET(request: Request) {
 			}
 		}
 
-		// Fetch the target URL
+		// Fetch target resource
 		const res = await fetch(targetUrl, {
 			method: 'GET',
 			headers: forwardedHeaders,
 		});
 
-		// Clone and filter response headers
+		// Clone response headers
 		const responseHeaders = new Headers(res.headers);
 		const finalHeaders = new Headers();
 
-		// Preserve important headers only (avoid restricted or security headers)
+		// Extract content-type to decide caching
+		const contentType = responseHeaders.get('content-type') || '';
+
+		// Determine optimal Cache-Control header
+		if (
+			contentType.startsWith('image/') ||
+			contentType.includes('font') ||
+			contentType.includes('woff') ||
+			contentType.includes('otf') ||
+			contentType.includes('ttf')
+		) {
+			finalHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+		} else {
+			finalHeaders.set('Cache-Control', 'public, max-age=1800');
+		}
+
+		// Preserve safe headers
 		const safeResponseHeaders = [
 			'content-type',
 			'content-length',
-			'cache-control',
 			'expires',
 			'last-modified',
 			'etag',
@@ -49,10 +62,11 @@ export async function GET(request: Request) {
 		}
 
 		// Set CORS headers
-		finalHeaders.set("Access-Control-Allow-Origin", "*");
-		finalHeaders.set("Access-Control-Allow-Methods", "GET");
-		finalHeaders.set("Access-Control-Allow-Headers", "Content-Type");
+		finalHeaders.set('Access-Control-Allow-Origin', '*');
+		finalHeaders.set('Access-Control-Allow-Methods', 'GET');
+		finalHeaders.set('Access-Control-Allow-Headers', 'Content-Type');
 
+		// Return proxied response
 		return new Response(res.body, {
 			status: res.status,
 			statusText: res.statusText,
